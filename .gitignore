@@ -7,3 +7,6 @@ __pycache__/
 
 data/instances/*
 !data/instances/.gitkeep
+
+results/*
+!results/.gitkeep
