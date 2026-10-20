@@ -17,7 +17,7 @@ POP_SIZE = 100       # rozmiar populacji
 GENERATIONS = 100    # liczba pokolen
 PX = 0.7             # prawdopodobienstwo krzyzowania
 PM = 0.1             # prawdopodobienstwo mutacji (inwersja, na osobnika)
-TOUR = 5             # rozmiar turnieju
+TOURNAMENT = 5       # rozmiar turnieju
 N_RUNS = 10          # liczba uruchomien metod niedeterministycznych
 
 # algorytm losowy: tyle ocen, ile wykonuje EA (pokolenia x osobniki)

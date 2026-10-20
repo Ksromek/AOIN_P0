@@ -15,12 +15,12 @@ def summary(name, values, elapsed, n_evals):
 
 def main():
     for path in INSTANCES:
-        number_generator = np.random.default_rng(SEED)
+        rng = np.random.default_rng(SEED)
         inst = TTPInstance(path)
         print(f"\n{path}  (n={inst.n_cities}, m={inst.n_items})")
 
         t0 = time.perf_counter()
-        _, _, values, best_history = random_search(inst, N_RANDOM, number_generator)
+        _, _, values, best_history = random_search(inst, N_RANDOM, rng)
         summary("losowy", values, time.perf_counter() - t0, N_RANDOM)
 
         t0 = time.perf_counter()
