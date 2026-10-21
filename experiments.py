@@ -74,7 +74,8 @@ def main():
         "pop_size": POP_SIZE, "generations": GENERATIONS,
     }
     sa_params = {
-        "cooling": SA_COOLING_SCHEMA, "start_temp": SA_START_TEMP, "alpha": SA_ALPHA, "min_temp": SA_MIN_TEMP, "max_iterations": SA_MAX_ITERATIONS,
+        "cooling": SA_COOLING_SCHEMA, "start_temp": SA_START_TEMP, "alpha": SA_ALPHA, "min_temp": SA_MIN_TEMP,
+        "max_iterations": SA_MAX_ITERATIONS,
     }
 
     for path in INSTANCES:
