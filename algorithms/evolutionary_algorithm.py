@@ -18,12 +18,11 @@ def init_population(inst, pop_size, init, rng):
     population = []
 
     if init == "greedy":
-        # trasy z najblizszego sasiada z losowych miast startowych (max n roznych)
         starts = rng.permutation(n)[:min(pop_size, n)]
         for start in starts:
             population.append(nearest_neighbour_tour(inst, start))
 
-    # reszta (albo cala populacja przy "random")
+    # random
     while len(population) < pop_size:
         population.append(random_tour(n, rng))
 
@@ -53,15 +52,12 @@ def mutate(child, mutation, pm, rng):
     n = len(child)
 
     if mutation == "inversion":
-        # Pm na osobnika: jedna inwersja z prawdopodobienstwem pm
         pos_1, pos_2 = np.sort(rng.choice(np.arange(1, n), 2, replace=False))
         if rng.random() < pm:
             child = inversion_mutation(child, pos_1, pos_2)
         return child
 
     if mutation == "swap":
-        # Pm na gen: kazda pozycja (poza miastem 0) z prawdopodobienstwem pm
-        # zamienia sie z losowa inna pozycja
         for i in range(1, n):
             if rng.random() < pm:
                 j = rng.integers(1, n)
@@ -82,7 +78,7 @@ def evolutionary_algorithm(inst, rng, pop_size, generations, px, pm, tournament,
     best_score = evals[best_index]
     best_tour = population[best_index]
 
-    # historia: (nr pokolenia, best, avg, worst); pokolenie 0 = populacja startowa
+    # historia populacji: (nr pokolenia, best, avg, worst); pokolenie 0 = populacja startowa
     history = [(0, evals.max(), evals.mean(), evals.min())]
 
     for gen in range(1, generations + 1):

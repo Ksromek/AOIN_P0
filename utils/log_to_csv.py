@@ -1,11 +1,12 @@
 import csv
 
-# instancja; nr_uruchomienia; nr_pokolenia; najlepsza; srednia; najgorsza
-def save_history_csv(path, rows):
+
+# jeden plik na instancje, w kazdym wierszu: dane z historii + parametry metody
+def save_history_csv(path, columns, params, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.writer(f, delimiter=";")
-        writer.writerow(["instancja", "uruchomienie", "nr_pokolenia",
-                         "najlepsza_ocena", "srednia_ocen", "najgorsza_ocena"])
-        for instance_name, run, gen, best, avg, worst in rows:
-            writer.writerow([instance_name, run, gen, f"{best:.2f}", f"{avg:.2f}", f"{worst:.2f}"])
+        writer.writerow([*columns, *params.keys()])
+        for row in rows:
+            values = [f"{v:.2f}" if isinstance(v, float) else v for v in row]
+            writer.writerow([*values, *params.values()])

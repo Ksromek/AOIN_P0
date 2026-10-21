@@ -2,9 +2,13 @@ import time
 
 import numpy as np
 
-from config import (INSTANCES, RESULTS_DIR, SEED, N_RUNS, N_RANDOM, POP_SIZE, GENERATIONS, PX, PM, TOURNAMENT, INIT_METHOD, SELECTION_METHOD, CROSSOVER_METHOD, MUTATION_METHOD)
+from config import (INSTANCES, RESULTS_DIR, SEED, N_RUNS, N_RANDOM,
+                    POP_SIZE, GENERATIONS, PX, PM, TOURNAMENT,
+                    INIT_METHOD, SELECTION_METHOD, CROSSOVER_METHOD, MUTATION_METHOD,
+                    SA_START_TEMP, SA_ALPHA, SA_COOLING_SCHEMA, SA_MIN_TEMP,
+                    SA_MAX_ITERATIONS, SA_LOG_EVERY)
 from ttp import TTPInstance
-from algorithms import random_search, greedy, evolutionary_algorithm
+from algorithms import random_search, greedy, evolutionary_algorithm, simulated_annealing
 from utils.log_to_csv import save_history_csv
 
 
@@ -14,24 +18,64 @@ def summary(name, values, elapsed, n_evals):
           f"[{n_evals} ocen, {elapsed:.3f} s]")
 
 
-def run_ea(inst, instance_name, all_history):
+# konfiguracja EA do nazwy pliku, np. random_tour5_ox_px0.7_inversion_pm0.1_pop100_gen100
+def config_tag():
+    selection = f"tour{TOURNAMENT}" if SELECTION_METHOD == "tournament" else SELECTION_METHOD
+    return (f"{INIT_METHOD}_{selection}_{CROSSOVER_METHOD}_px{PX}_"
+            f"{MUTATION_METHOD}_pm{PM}_pop{POP_SIZE}_gen{GENERATIONS}")
+
+
+# konfiguracja SA do nazwy pliku, np. sa_geometric_t1000.0_a0.999_min0.0_it10000
+def sa_config_tag():
+    return (f"sa_{SA_COOLING_SCHEMA}_t{SA_START_TEMP}_a{SA_ALPHA}_"
+            f"min{SA_MIN_TEMP}_it{SA_MAX_ITERATIONS}")
+
+
+def run_ea(inst):
     best_scores = np.zeros(N_RUNS)
+    history_rows = []
     for run in range(N_RUNS):
-        rng = np.random.default_rng(SEED + run)  # kazde uruchomienie z innym seedem
+        seed = SEED + run
+        rng = np.random.default_rng(seed)
         _, best_scores[run], history, n_evals = evolutionary_algorithm(
             inst, rng, POP_SIZE, GENERATIONS, PX, PM, TOURNAMENT,
             INIT_METHOD, SELECTION_METHOD, CROSSOVER_METHOD, MUTATION_METHOD)
         for gen, best, avg, worst in history:
-            all_history.append((instance_name, run, gen, best, avg, worst))
-    return best_scores, n_evals
+            history_rows.append((run, seed, gen, best, avg, worst))
+    return best_scores, n_evals, history_rows
+
+
+def run_sa(inst):
+    best_scores = np.zeros(N_RUNS)
+    evals = np.zeros(N_RUNS, dtype=int)
+    history_rows = []
+    for run in range(N_RUNS):
+        seed = SEED + run
+        rng = np.random.default_rng(seed)
+        _, best_scores[run], history, evals[run] = simulated_annealing(
+            inst, rng, SA_START_TEMP, SA_ALPHA, SA_MAX_ITERATIONS, SA_MIN_TEMP, SA_COOLING_SCHEMA)
+        for it, current, best, temp in history:
+            if it % SA_LOG_EVERY == 0 or it == len(history) - 1:
+                history_rows.append((run, seed, it, current, best, temp))
+    return best_scores, evals, history_rows
 
 
 def main():
     print(f"EA: init={INIT_METHOD}, sel={SELECTION_METHOD}, Tour={TOURNAMENT}, "
           f"cx={CROSSOVER_METHOD}, Px={PX}, mut={MUTATION_METHOD}, Pm={PM}, "
           f"pop_size={POP_SIZE}, gen={GENERATIONS}, runs={N_RUNS}")
+    print(f"SA: cooling={SA_COOLING_SCHEMA}, T0={SA_START_TEMP}, alpha={SA_ALPHA}, "
+          f"min_temp={SA_MIN_TEMP}, max_it={SA_MAX_ITERATIONS}, runs={N_RUNS}")
 
-    all_history = []  # wszystkie przebiegi EA, zapisane do jednego CSV
+    # parametry zapisane w kazdym wierszu CSV
+    ea_params = {
+        "init": INIT_METHOD, "selection": SELECTION_METHOD, "tournament": TOURNAMENT,
+        "crossover": CROSSOVER_METHOD, "px": PX, "mutation": MUTATION_METHOD, "pm": PM,
+        "pop_size": POP_SIZE, "generations": GENERATIONS,
+    }
+    sa_params = {
+        "cooling": SA_COOLING_SCHEMA, "start_temp": SA_START_TEMP, "alpha": SA_ALPHA, "min_temp": SA_MIN_TEMP, "max_iterations": SA_MAX_ITERATIONS,
+    }
 
     for path in INSTANCES:
         rng = np.random.default_rng(SEED)
@@ -48,11 +92,22 @@ def main():
         summary("zachlanny", values, time.perf_counter() - t0, inst.n_cities)
 
         t0 = time.perf_counter()
-        values, n_evals = run_ea(inst, instance_name, all_history)
+        values, n_evals, history_rows = run_ea(inst)
         summary("EA", values, (time.perf_counter() - t0) / N_RUNS, n_evals)
 
-    save_history_csv(RESULTS_DIR / "ea_history.csv", all_history)
-    print(f"\nHistoria EA zapisana do {RESULTS_DIR / 'ea_history.csv'}")
+        csv_path = RESULTS_DIR / f"{instance_name}_{config_tag()}.csv"
+        save_history_csv(csv_path, ["uruchomienie", "seed", "nr_pokolenia", "najlepsza_ocena",
+                                    "srednia_ocen", "najgorsza_ocena"], ea_params, history_rows)
+        print(f"  historia EA -> {csv_path.name}")
+
+        t0 = time.perf_counter()
+        values, evals, history_rows = run_sa(inst)
+        summary("SA", values, (time.perf_counter() - t0) / N_RUNS, int(evals.mean()))
+
+        csv_path = RESULTS_DIR / f"{instance_name}_{sa_config_tag()}.csv"
+        save_history_csv(csv_path, ["uruchomienie", "seed", "iteracja", "biezaca_ocena",
+                                    "najlepsza_ocena", "temperatura"], sa_params, history_rows)
+        print(f"  historia SA -> {csv_path.name}")
 
 
 if __name__ == "__main__":
