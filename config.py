@@ -4,22 +4,29 @@ PROJECT_DIR = Path(__file__).parent
 INSTANCES_DIR = PROJECT_DIR / "data" / "instances"
 RESULTS_DIR = PROJECT_DIR / "results"
 
-# instancje testowe
 INSTANCES = [
+    # latwe
     INSTANCES_DIR / "berlin52_n153_uncorr_06.ttp",
     INSTANCES_DIR / "berlin52_n510_uncorr_07.ttp",
+    # srednie
+    INSTANCES_DIR / "ch150_n149_uncorr-similar-weights_09.ttp",
+    INSTANCES_DIR / "ch150_n447_uncorr-similar-weights_06.ttp",
+    # trudne
+    INSTANCES_DIR / "a280_n279_bounded-strongly-corr_08.ttp",
+    INSTANCES_DIR / "a280_n837_bounded-strongly-corr_04.ttp",
+    # extra
+    INSTANCES_DIR / "d493_n2460_uncorr-similar-weights_10.ttp",
 ]
 
 # powtarzalnosc
-SEED = 42
-N_RUNS = 10          # liczba uruchomien metod niedeterministycznych
+SEED = 2000
+N_RUNS = 10          # liczba uruchomien
 
-# parametry EA (wartosci startowe z tresci zadania)
-POP_SIZE = 100       # rozmiar populacji
-GENERATIONS = 100    # liczba pokolen
-PX = 0.6             # prawdopodobienstwo krzyzowania
-PM = 0.1             # prawdopodobienstwo mutacji: inwersja - na osobnika, swap - na gen (start od 0.01)
-TOURNAMENT = 5       # rozmiar turnieju
+POP_SIZE = 50        # rozmiar populacji
+GENERATIONS = 200    # liczba pokolen
+PX = 0.7             # prawdopodobienstwo krzyzowania
+PM = 0.7             # prawdopodobienstwo mutacji: inwersja - na osobnika, swap - na gen (start od 0.01)
+TOURNAMENT = 10      # rozmiar turnieju
 
 # operatory EA
 INIT_METHOD = "random"           # "random" / "greedy"
@@ -27,12 +34,16 @@ SELECTION_METHOD = "tournament"  # "tournament" / "roulette"
 CROSSOVER_METHOD = "ox"          # "ox" / "pmx" / "cx"
 MUTATION_METHOD = "inversion"    # "inversion" / "swap"
 
-# algorytm losowy: tyle ocen, ile wykonuje EA (pokolenia x osobniki)
+# drugi wariant EA
+EA_GREEDY = {"INIT_METHOD": "greedy", "POP_SIZE": 100, "GENERATIONS": 100,
+             "TOURNAMENT": 5, "PX": 0.7, "PM": 0.5}
+
+# algorytm losowy, tyle ocen, ile wykonuje EA (pokolenia x osobniki)
 N_RANDOM = POP_SIZE * GENERATIONS
 
-# parametry SA (stop tylko po temperaturze: SA dziala, dopoki T > SA_MIN_TEMP)
-SA_START_TEMP = 2000.0             # temperatura poczatkowa
-SA_MIN_TEMP = 0.01                # temperatura koncowa - warunek stopu (musi byc > 0)
+# parametry SA
+SA_START_TEMP = 1000.0             # temperatura poczatkowa
+SA_MIN_TEMP = 0.05                 # temperatura koncowa - warunek stopu (musi byc > 0)
 SA_COOLING_SCHEMA = "geometric"    # "geometric" (T = alpha * T) / "linear" (T = T - beta)
 SA_ALPHA = 0.999                   # dla "geometric", z przedzialu (0, 1)
 SA_BETA = 0.1                      # dla "linear", > 0

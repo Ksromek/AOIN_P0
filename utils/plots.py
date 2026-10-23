@@ -9,6 +9,14 @@ from config import RESULTS_DIR
 
 PLOTS_DIR = RESULTS_DIR / "plots"
 
+# przebiegi dla jednej instancji z kazdej grupy (latwa, srednia, trudna, extra)
+PLOT_INSTANCES = [
+    "berlin52_n510_uncorr_07",
+    "ch150_n447_uncorr-similar-weights_06",
+    "a280_n837_bounded-strongly-corr_04",
+    "d493_n2460_uncorr-similar-weights_10",
+]
+
 # kolory serii (stala kolejnosc) i kolory tekstu/siatki
 COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 TEXT = "#0b0b0b"
@@ -38,12 +46,12 @@ plt.rcParams.update({
 })
 
 
-# odczyt CSV z experiments.py
+# odczyt CSV
 def load_history(path):
     return pd.read_csv(path, sep=";")
 
 
-# czytelny opis konfiguracji na podstawie kolumn z parametrami w CSV
+# opis konfiguracji na podstawie kolumn z parametrami w CSV
 def describe(df):
     p = df.iloc[0]
     if is_ea(df):
@@ -85,13 +93,12 @@ def plot_ea_generations(path):
     ax.plot(mean.index, mean["srednia_ocen"], color=COLORS[2], label="avg")
     ax.set_xlabel("pokolenie")
     ax.set_ylabel("ocena G(x, y)")
-    ax.legend(loc="lower right")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3)  # nad wykresem, nie zaslania danych
     fig.text(0.01, -0.02, describe(df), color=TEXT_SECONDARY, fontsize=8)
     save(fig, path.stem)
 
 
-# EA: wszystkie uruchomienia po kolei na jednej osi (jak Rysunek 5 w tresci)
-# - best / avg / worst kazdego pokolenia, kolejne uruchomienia jedno za drugim
+# EA: wszystkie uruchomienia po kolei na jednej osi - best / avg / worst kazdego pokolenia, kolejne uruchomienia jedno za drugim
 def plot_ea_runs(path):
     df = load_history(path).sort_values(["uruchomienie", "nr_pokolenia"]).reset_index(drop=True)
 
@@ -110,13 +117,12 @@ def plot_ea_runs(path):
 
     ax.set_xlabel("kolejne pokolenia wszystkich uruchomień")
     ax.set_ylabel("ocena G(x, y)")
-    ax.legend(loc="lower right")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3)  # nad wykresem, nie zaslania danych
     fig.text(0.01, -0.02, describe(df), color=TEXT_SECONDARY, fontsize=8)
     save(fig, f"{path.stem}_uruchomienia")
 
 
-# SA: najlepsza dotad ocena z uruchomien - najlepsze uruchomienie / srednia / najgorsze uruchomienie (gora)
-# oraz temperatura (dol)
+# SA: najlepsza dotad ocena z uruchomien - najlepsze uruchomienie / srednia / najgorsze uruchomienie oraz temperatura
 def plot_sa(path):
     df = load_history(path)
     stats = df.groupby("iteracja")["najlepsza_ocena"].agg(["max", "mean", "min"])
@@ -128,7 +134,7 @@ def plot_sa(path):
     ax_value.plot(stats.index, stats["min"], color=COLORS[1], label="najgorsze uruchomienie")
     ax_value.plot(stats.index, stats["mean"], color=COLORS[2], label="średnia z uruchomień")
     ax_value.set_ylabel("ocena G(x, y)")
-    ax_value.legend(loc="lower right")
+    ax_value.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3)  # nad wykresem, nie zaslania danych
 
     ax_temp.plot(temp.index, temp.values, color=TEXT_SECONDARY)
     ax_temp.set_xlabel("iteracja")
@@ -139,9 +145,10 @@ def plot_sa(path):
 
 
 def main():
-    csv_paths = sorted(RESULTS_DIR.glob("*.csv"))
+    csv_paths = sorted(path for path in RESULTS_DIR.glob("*.csv")
+                       if any(path.stem.startswith(f"{inst}_") for inst in PLOT_INSTANCES))
     if not csv_paths:
-        print(f"Brak plikow CSV w {RESULTS_DIR}")
+        print(f"Brak plikow CSV dla instancji z PLOT_INSTANCES w {RESULTS_DIR}")
         return
 
     # EA: dwa wykresy na plik, SA: jeden
