@@ -1,6 +1,5 @@
 import csv
 
-
 # jeden plik na instancje, w kazdym wierszu: dane z historii + parametry metody
 def save_history_csv(path, columns, params, rows):
     path.parent.mkdir(parents=True, exist_ok=True)

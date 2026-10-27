@@ -1,7 +1,5 @@
 import os
-import time
-import traceback
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from itertools import product
 
 import pandas as pd
@@ -144,7 +142,6 @@ SA_SUMMARY_COLUMNS = ["instancja", "badanie", "chlodzenie", "t0", "t_min", "alfa
                       "best", "worst", "avg", "std", "oceny", "plik"]
 
 
-
 # lista zadan: (metoda, instancja, nazwa badania, pelne parametry, sciezka CSV)
 def build_jobs():
     base = {**default_params(), **SWEEP_BASE}
@@ -195,45 +192,26 @@ def sa_param_cells(p):
     return [p["SA_COOLING_SCHEMA"], str(p["SA_START_TEMP"]), str(p["SA_MIN_TEMP"]),
             str(p["SA_ALPHA"]) if geometric else "-", "-" if geometric else str(p["SA_BETA"])]
 
+
 def main():
     jobs = build_jobs()
 
-    # ta sama konfiguracja moze wystapic w kilku badaniach, ale liczymy ja raz
     unique = {}
     for method, path, study, p, csv_path in jobs:
         unique.setdefault(csv_path, (method, path, p))
     todo = {csv_path: job for csv_path, job in unique.items() if not csv_path.exists()}
+    print(f"Konfiguracji: {len(unique)}, do policzenia: {len(todo)}, procesow: {N_WORKERS}")
 
-    print(f"Konfiguracji: {len(unique)}, juz policzonych: {len(unique) - len(todo)}, "
-          f"do policzenia: {len(todo)}, procesow: {N_WORKERS}")
+    # konfiguracje liczone rownolegle; kazda zapisuje swoj plik CSV z przebiegami
+    with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:
+        futures = [executor.submit(run_job, method, path, p, csv_path)
+                   for csv_path, (method, path, p) in todo.items()]
+        for future in futures:
+            future.result()  # czeka na zakonczenie; blad w procesie zatrzyma program
 
-    start = time.perf_counter()
-    done = 0
-    errors = 0
-    if todo:
-        with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:
-            futures = {executor.submit(run_job, method, path, p, csv_path): csv_path
-                       for csv_path, (method, path, p) in todo.items()}
-            for future in as_completed(futures):
-                csv_path = futures[future]
-                done += 1
-                try:
-                    future.result()
-                    status = "OK"
-                except Exception:
-                    errors += 1
-                    status = "BLAD"
-                    print(traceback.format_exc())
-                elapsed = time.perf_counter() - start
-                eta = elapsed / done * (len(todo) - done)
-                print(f"[{done}/{len(todo)}] {status} {csv_path.name}  "
-                      f"(uplynelo {elapsed / 60:.1f} min, zostalo ok. {eta / 60:.1f} min)")
-
-    # tabele zbiorcze ze wszystkich gotowych plikow (osobno EA i SA)
+    # tabele zbiorcze ze wszystkich plikow (osobno EA i SA)
     ea_rows, sa_rows = [], []
     for method, path, study, p, csv_path in jobs:
-        if not csv_path.exists():
-            continue
         best, worst, avg, std, evals = stats_from_csv(method, csv_path)
         stats = [best, worst, avg, std, evals, csv_path.name]
         if method == "EA":
@@ -242,10 +220,7 @@ def main():
             sa_rows.append([path.stem, study, *sa_param_cells(p), *stats])
     save_history_csv(SWEEP_DIR / "podsumowanie_ea.csv", EA_SUMMARY_COLUMNS, {}, ea_rows)
     save_history_csv(SWEEP_DIR / "podsumowanie_sa.csv", SA_SUMMARY_COLUMNS, {}, sa_rows)
-
-    print(f"\nGotowe w {(time.perf_counter() - start) / 60:.1f} min, bledow: {errors}")
     print(f"Podsumowania -> {SWEEP_DIR / 'podsumowanie_ea.csv'}, {SWEEP_DIR / 'podsumowanie_sa.csv'}")
-
 
 if __name__ == "__main__":
     main()

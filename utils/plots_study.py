@@ -13,21 +13,16 @@ OUT_DIR = RESULTS_DIR / "wykresy"
 Y_LABEL = "ocena G(x, y): avg ± std"
 EA_COLOR, SA_COLOR, GREEDY_COLOR = COLORS[0], COLORS[1], COLORS[2]
 
-# opis wartosci bazowych (do stopek)
-EA_BASE = ("turniej Tour = 5, OX, Px = 0.7, inwersja Pm = 0.1, inicjalizacja losowa, "
-           "pop_size = 100, gen = 100")
-SA_BASE = "chłodzenie geometryczne, T0 = 1000, alfa = 0.999, T_min = 0.05"
-
 plt.rcParams["axes.axisbelow"] = True  # siatka pod danymi
 
 
 
-# pomocnicze
-
+# odczyt CSV; kolumny, w ktorych czesc wierszy ma "-"
 def read(path):
     df = pd.read_csv(path, sep=";")
-    if "tour" in df.columns:
-        df["tour"] = pd.to_numeric(df["tour"], errors="coerce")  # ruletka ma "-" zamiast rozmiaru turnieju
+    for column in ["tour", "alfa", "beta"]:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
     return df
 
 
@@ -38,22 +33,18 @@ def short(instance):
 
 def save(fig, name):
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()  # odstepy miedzy panelami, zeby tytuly nie nachodzily na opisy osi
+    fig.tight_layout()  # odstepy miedzy panelami, zeby opisy nie nachodzily na siebie
     fig.savefig(OUT_DIR / f"{name}.png", dpi=300)
     plt.close(fig)
 
 
-def footnote(fig, text):
-    fig.text(0.01, -0.03, text, color=TEXT_SECONDARY, fontsize=8)
-
-
-# linia avg z +- std
-def band(ax, x, avg, std, color, label=None, marker="o"):
-    ax.plot(x, avg, color=color, marker=marker, markersize=4, label=label)
+# linia = avg, zacieniowany pas = avg +- std
+def band(ax, x, avg, std, color, label=None):
+    ax.plot(x, avg, color=color, marker="o", markersize=4, label=label)
     ax.fill_between(x, avg - std, avg + std, color=color, alpha=0.15, linewidth=0)
 
 
-# wartosci kategoryczne: punkt = avg, +- std
+# wartosci kategoryczne: punkt = avg, slupek bledu = +- std
 def points(ax, labels, avg, std, color):
     x = np.arange(len(labels))
     ax.errorbar(x, avg, yerr=std, color=color, marker="o", markersize=6, capsize=4, linestyle="none")
@@ -62,11 +53,32 @@ def points(ax, labels, avg, std, color):
     ax.set_xlim(-0.6, len(labels) - 0.4)
 
 
+# os X w skali logarytmicznej, podpisy tylko przy badanych wartosciach
 def log_ticks(ax, values):
     ax.set_xscale("log")
     ax.set_xticks(values)
     ax.set_xticklabels([f"{v:g}" for v in values])
     ax.minorticks_off()
+
+
+# mapa ciepla z wartoscia w kazdej komorce (bialy tekst na ciemnym tle, czarny na jasnym)
+def heatmap(ax, table, xlabel, ylabel):
+    values = table.to_numpy(dtype=float)
+    ax.imshow(values, cmap="Blues", aspect="auto", origin="lower")
+    ax.set_xticks(range(len(table.columns)))
+    ax.set_xticklabels([f"{c:g}" for c in table.columns])
+    ax.set_yticks(range(len(table.index)))
+    ax.set_yticklabels([f"{r:g}" for r in table.index])
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.grid(False)
+
+    middle = (np.nanmin(values) + np.nanmax(values)) / 2
+    for i in range(values.shape[0]):
+        for j in range(values.shape[1]):
+            if not np.isnan(values[i, j]):  # pusta komorka (np. T0 = T_min) zostaje bez napisu
+                color = "white" if values[i, j] > middle else TEXT
+                ax.text(j, i, f"{values[i, j]:.0f}", ha="center", va="center", fontsize=7, color=color)
 
 
 # EA: wplyw jednego parametru liczbowego (Pm / Px / Tour); pionowa linia - wartosc z tresci zadania
@@ -81,12 +93,10 @@ def plot_ea_param(ea, study, column, xlabel, base, name, log_x=False):
             log_ticks(ax, d[column])
         ax.set_xlabel(xlabel)
         ax.set_ylabel(Y_LABEL)
-        footnote(fig, f"{short(inst)}; pozostałe parametry: {EA_BASE}.\n"
-                      f"Linia kropkowana: wartość z treści ({base}). 10 uruchomień na punkt.")
         save(fig, f"{name}_{short(inst)}")
 
 
-# EA: pop_size (gen = 100) i gen (pop_size = 100) na jednej osi
+# EA: pop_size (przy gen = 100) i gen (przy pop_size = 100) na jednym wykresie
 def plot_ea_pop_gen(ea):
     for inst in ea["instancja"].unique():
         fig, ax = plt.subplots(figsize=(6.5, 4))
@@ -98,36 +108,36 @@ def plot_ea_pop_gen(ea):
         ax.set_xlabel("wartość parametru")
         ax.set_ylabel(Y_LABEL)
         ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2)
-        footnote(fig, f"{short(inst)}; pozostałe parametry: {EA_BASE}.\n"
-                      f"Liczba ocen = pop_size × (gen + 1). 10 uruchomień na punkt.")
         save(fig, f"A4_pop_size_gen_{short(inst)}")
 
 
-# EA: rozny podzial tego samego budzetu (~10 000 ocen)
+# EA: rozny podzial tego samego budzetu (~10 000 ocen) na pop_size i gen
 def plot_ea_pop_gen_budget(ea):
     data = ea[ea["badanie"] == "POP_GEN"]
     for inst in data["instancja"].unique():
         d = data[data["instancja"] == inst].sort_values("pop_size")
+        labels = [f"{p}/{g}" for p, g in zip(d["pop_size"], d["gen"])]
         fig, ax = plt.subplots(figsize=(6.5, 4))
-        points(ax, [f"{p}/{g}" for p, g in zip(d["pop_size"], d["gen"])], d["avg"], d["std"], EA_COLOR)
+        points(ax, labels, d["avg"], d["std"], EA_COLOR)
         ax.set_xlabel("pop_size / gen")
         ax.set_ylabel(Y_LABEL)
-        footnote(fig, f"{short(inst)}; budżet ~10 000 ocen; pozostałe parametry jak w treści zadania. "
-                      f"10 uruchomień na punkt.")
         save(fig, f"A5_pop_gen_staly_budzet_{short(inst)}")
 
 
-# EA: parametry kategoryczne (selekcja, krzyzowanie, mutacja, inicjalizacja)
+# EA: selekcja, krzyzowanie, mutacja i inicjalizacja - cztery panele obok siebie
 def plot_ea_categorical(ea):
-    studies = [("SELEKCJA", "selekcja", {"tournament": "turniej", "roulette": "ruletka"}, "selekcja"),
-               ("KRZYZOWANIE", "krzyzowanie", {"ox": "OX", "pmx": "PMX", "cx": "CX"}, "krzyżowanie"),
-               ("MUTACJA", None, None, "mutacja (operator, Pm)"),
-               ("INICJALIZACJA", "init", {"random": "losowa", "greedy": "zachłanna"}, "inicjalizacja")]
+    names = {"tournament": "turniej", "roulette": "ruletka", "ox": "OX", "pmx": "PMX", "cx": "CX",
+             "random": "losowa", "greedy": "zachłanna"}
+    panels = [("SELEKCJA", "selekcja", "selekcja"),
+              ("KRZYZOWANIE", "krzyzowanie", "krzyżowanie"),
+              ("MUTACJA", "mutacja", "mutacja (operator, Pm)"),
+              ("INICJALIZACJA", "init", "inicjalizacja")]
     for inst in ea["instancja"].unique():
-        fig, axes = plt.subplots(1, len(studies), figsize=(13, 3.8))
-        for ax, (study, column, names, xlabel) in zip(axes, studies):
+        fig, axes = plt.subplots(1, len(panels), figsize=(13, 3.8))
+        for ax, (study, column, xlabel) in zip(axes, panels):
             d = ea[(ea["badanie"] == study) & (ea["instancja"] == inst)]
             if study == "MUTACJA":
+                # kilka wartosci Pm dla swapa - podpis: operator + Pm
                 d = d.sort_values(["mutacja", "pm"])
                 labels = [f"inw.\n{pm}" if m == "inversion" else f"swap\n{pm}"
                           for m, pm in zip(d["mutacja"], d["pm"])]
@@ -137,74 +147,47 @@ def plot_ea_categorical(ea):
             ax.tick_params(axis="x", labelsize=8)
             ax.set_xlabel(xlabel)
         axes[0].set_ylabel(Y_LABEL)
-        footnote(fig, f"{short(inst)}; pozostałe parametry: {EA_BASE}. Swap: Pm na gen, inwersja: Pm na osobnika. "
-                      f"10 uruchomień na punkt.")
         save(fig, f"A6_operatory_{short(inst)}")
 
 
-# SA: T0, alfa, T_min - os X kategoryczna, pod wartoscia liczba iteracji
+# SA: T0, alfa i T_min - trzy panele; pod kazda wartoscia liczba iteracji, ktora z niej wynika
 def plot_sa_params(sa):
-    studies = [("T0", "t0", "T0"), ("ALFA", "alfa", "alfa"), ("TMIN", "t_min", "T_min")]
+    panels = [("T0", "t0", "T0"), ("ALFA", "alfa", "alfa"), ("TMIN", "t_min", "T_min")]
     for inst in sa["instancja"].unique():
-        fig, axes = plt.subplots(1, len(studies), figsize=(13, 3.8))
-        for ax, (study, column, xlabel) in zip(axes, studies):
-            d = sa[(sa["badanie"] == study) & (sa["instancja"] == inst)].copy()
-            d["_x"] = d[column].astype(float)
-            d = d.sort_values("_x")
-            x = np.arange(len(d))
+        fig, axes = plt.subplots(1, len(panels), figsize=(13, 3.8))
+        for ax, (study, column, xlabel) in zip(axes, panels):
+            d = sa[(sa["badanie"] == study) & (sa["instancja"] == inst)].sort_values(column)
+            x = np.arange(len(d))  # rowne odstepy miedzy wartosciami
             band(ax, x, d["avg"].to_numpy(), d["std"].to_numpy(), SA_COLOR)
             ax.set_xticks(x)
-            ax.set_xticklabels([f"{v:g}\n({e} it.)" for v, e in zip(d["_x"], d["oceny"])], fontsize=8)
+            ax.set_xticklabels([f"{v:g}\n({e} it.)" for v, e in zip(d[column], d["oceny"])], fontsize=8)
             ax.set_xlabel(xlabel)
         axes[0].set_ylabel(Y_LABEL)
-        footnote(fig, f"{short(inst)}; pozostałe parametry: {SA_BASE}. 10 uruchomień na punkt.")
         save(fig, f"A7_sa_parametry_{short(inst)}")
 
 
-def heatmap(ax, table, xlabel, ylabel, fmt="{:.0f}"):
-    values = table.to_numpy(dtype=float)
-    ax.imshow(values, cmap="Blues", aspect="auto", origin="lower")
-    ax.set_xticks(range(len(table.columns)))
-    ax.set_xticklabels([f"{c:g}" if isinstance(c, (int, float)) else c for c in table.columns])
-    ax.set_yticks(range(len(table.index)))
-    ax.set_yticklabels([f"{r:g}" if isinstance(r, (int, float)) else r for r in table.index])
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.grid(False)
-    # wartosci w komorkach (kolor tekstu zalezny od tla)
-    finite = values[np.isfinite(values)]
-    middle = (finite.min() + finite.max()) / 2
-    for i in range(values.shape[0]):
-        for j in range(values.shape[1]):
-            if np.isfinite(values[i, j]):
-                ax.text(j, i, fmt.format(values[i, j]), ha="center", va="center", fontsize=7,
-                        color="white" if values[i, j] > middle else TEXT)
 
-
-# EA: srednia avg z siatki dla pary parametrow (pop_size = 100, zeby kazda komorka miala te same warianty)
+# EA: srednie avg dla pary parametrow; tylko pop_size = 100, zeby kazda komorka miala te same warianty
 def plot_ea_interaction(ea, rows, cols, row_label, col_label, name):
     data = ea[(ea["badanie"] == "SIATKA") & (ea["pop_size"] == 100)]
-    others = {"pm": "Pm", "tour": "Tour", "px": "Px"}
-    averaged = [others[c] for c in others if c not in (rows, cols)]
     for inst in data["instancja"].unique():
-        table = data[data["instancja"] == inst].pivot_table(index=rows, columns=cols, values="avg", aggfunc="mean")
+        d = data[data["instancja"] == inst]
+        table = d.pivot_table(index=rows, columns=cols, values="avg", aggfunc="mean")
         fig, ax = plt.subplots(figsize=(6.5, 4.5))
         heatmap(ax, table, col_label, row_label)
-        footnote(fig, f"{short(inst)}; wartość w komórce: średnia avg z siatki (inwersja, inicjalizacja losowa, "
-                      f"pop_size = 100, gen = 100)\nuśredniona po: {', '.join(averaged)}, krzyżowanie OX i PMX.")
         save(fig, f"{name}_{short(inst)}")
 
 
-# SA przy stalym budzecie: geometryczne (T0 x T_min) i liniowe (avg w funkcji T0)
+# SA przy stalym budzecie: geometryczne (mapa T0 x T_min) i liniowe (avg w funkcji T0)
 def plot_sa_budget_grid(sa):
     for inst in sa["instancja"].unique():
         fig, (ax_geo, ax_lin) = plt.subplots(1, 2, figsize=(13, 4.2), gridspec_kw={"width_ratios": [3, 2]})
 
         geo = sa[(sa["badanie"] == "SIATKA_GEOMETRYCZNE") & (sa["instancja"] == inst)]
-        table = geo.pivot_table(index="t_min", columns="t0", values="avg")
-        heatmap(ax_geo, table, "T0", "T_min")
+        heatmap(ax_geo, geo.pivot_table(index="t_min", columns="t0", values="avg"), "T0", "T_min")
         ax_geo.set_title("chłodzenie geometryczne", fontsize=10, color=TEXT)
 
+        # liniowe: dla kazdego T0 srednia (i std) z kilku wartosci T_min
         lin = sa[(sa["badanie"] == "SIATKA_LINIOWE") & (sa["instancja"] == inst)]
         lin = lin.groupby("t0")["avg"].agg(["mean", "std"]).reset_index()
         band(ax_lin, lin["t0"], lin["mean"], lin["std"].fillna(0), SA_COLOR, "liniowe")
@@ -216,33 +199,40 @@ def plot_sa_budget_grid(sa):
         ax_lin.set_ylabel("ocena G(x, y): avg")
         ax_lin.set_title("chłodzenie liniowe", fontsize=10, color=TEXT)
         ax_lin.legend(loc="lower left", fontsize=8)
-        footnote(fig, f"{short(inst)}; budżet ~9900 iteracji (alfa i beta dobrane do T0 i T_min). "
-                      f"Mapa: avg z 10 uruchomień. Chłodzenie liniowe: średnia i rozrzut avg po T_min ∈ {{0.01, 0.1, 1}}.")
         save(fig, f"B3_sa_staly_budzet_{short(inst)}")
 
 
-def candidate_label(row, method):
-    if method == "SA":
-        cooling = "geom." if row["chlodzenie"] == "geometric" else "lin."
-        return f"SA {cooling} T0={float(row['t0']):g} Tmin={float(row['t_min']):g}"
-    init = "greedy" if row["init"] == "greedy" else "losowa"
-    mutation = "inw." if row["mutacja"] == "inversion" else "swap"
-    return (f"EA {init}, Tour={int(row['tour'])}, {row['krzyzowanie'].upper()}, Px={row['px']}, "
-            f"{mutation} Pm={row['pm']}, {row['pop_size']}/{row['gen']}")
+# opis kandydata na osi Y, np. "EA losowa, Tour=10, OX, Px=0.7, inw. Pm=0.7, 50/200"
+def ea_label(r):
+    init = "greedy" if r["init"] == "greedy" else "losowa"
+    mutation = "inw." if r["mutacja"] == "inversion" else "swap"
+    return (f"EA {init}, Tour={int(r['tour'])}, {r['krzyzowanie'].upper()}, Px={r['px']}, "
+            f"{mutation} Pm={r['pm']}, {r['pop_size']}/{r['gen']}")
 
 
+def sa_label(r):
+    cooling = "geom." if r["chlodzenie"] == "geometric" else "lin."
+    return f"SA {cooling} T0={r['t0']:g} Tmin={r['t_min']:g}"
+
+
+# wszyscy kandydaci na jednym wykresie, posortowani wg avg; kolor = rodzaj metody
 def plot_validation(ea, sa):
-    rows = []
-    for method, df in [("EA", ea), ("SA", sa)]:
-        for _, r in df[df["badanie"] == "WALIDACJA"].iterrows():
-            kind = "SA" if method == "SA" else ("EA greedy" if r["init"] == "greedy" else "EA")
-            rows.append((r["instancja"], candidate_label(r, method), kind, r["avg"], r["std"]))
-    data = pd.DataFrame(rows, columns=["instancja", "etykieta", "rodzaj", "avg", "std"])
+    ea_val = ea[ea["badanie"] == "WALIDACJA"].copy()
+    ea_val["etykieta"] = ea_val.apply(ea_label, axis=1)
+    ea_val["rodzaj"] = np.where(ea_val["init"] == "greedy", "EA greedy", "EA")
+
+    sa_val = sa[sa["badanie"] == "WALIDACJA"].copy()
+    sa_val["etykieta"] = sa_val.apply(sa_label, axis=1)
+    sa_val["rodzaj"] = "SA"
+
+    columns = ["instancja", "etykieta", "rodzaj", "avg", "std"]
+    data = pd.concat([ea_val[columns], sa_val[columns]])
     colors = {"EA": EA_COLOR, "EA greedy": GREEDY_COLOR, "SA": SA_COLOR}
+
     for inst in data["instancja"].unique():
         d = data[data["instancja"] == inst].sort_values("avg")
-        fig, ax = plt.subplots(figsize=(10, 5.5))
         y = np.arange(len(d))
+        fig, ax = plt.subplots(figsize=(10, 5.5))
         for kind, color in colors.items():
             mask = (d["rodzaj"] == kind).to_numpy()
             ax.errorbar(d["avg"][mask], y[mask], xerr=d["std"][mask], color=color, marker="o",
@@ -253,17 +243,18 @@ def plot_validation(ea, sa):
         ax.set_xlabel(Y_LABEL)
         ax.grid(axis="y", visible=False)
         ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3)
-        footnote(fig, f"{short(inst)}; seedy 1000-1029 (30 uruchomień na konfigurację).")
         save(fig, f"C1_walidacja_{short(inst)}")
 
 
+# EA i SA w funkcji budzetu; dla porownania zachlanny (linie poziome) i EA greedy przy 10k (gwiazdka)
 def plot_budget(budget, table1):
     for inst in budget["instancja"].unique():
         fig, ax = plt.subplots(figsize=(6.5, 4.2))
         for method, color in [("EA", EA_COLOR), ("SA", SA_COLOR)]:
             d = budget[(budget["instancja"] == inst) & (budget["metoda"] == method)].sort_values("oceny")
             band(ax, d["oceny"], d["avg"], d["std"], color, method)
-        t = table1[table1["instancja"] == inst].set_index("metoda")
+
+        t = table1[table1["instancja"] == inst].set_index("metoda")  # wiersze Tabeli 1 dla tej instancji
         ax.axhline(t.loc["zachlanny", "avg"], color=TEXT_SECONDARY, linestyle="--", linewidth=1,
                    label="zachłanny (avg)")
         ax.axhline(t.loc["zachlanny", "best"], color=TEXT_SECONDARY, linestyle=":", linewidth=1,
@@ -271,20 +262,14 @@ def plot_budget(budget, table1):
         ax.errorbar(t.loc["EA_greedy", "oceny"], t.loc["EA_greedy", "avg"], yerr=t.loc["EA_greedy", "std"],
                     color=GREEDY_COLOR, marker="*", markersize=9, capsize=3, linestyle="none",
                     label="EA greedy")
+
         log_ticks(ax, [10_000, 30_000, 100_000])
         ax.set_xticklabels(["10k", "30k", "100k"])
         ax.ticklabel_format(axis="y", style="plain", useOffset=False)
         ax.set_xlabel("liczba ocen")
         ax.set_ylabel(Y_LABEL)
         ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, fontsize=8)
-        footnote(fig, f"{short(inst)}; EA: pop_size = 50, gen = 200 × mnożnik; SA: alfa = 0.999^(1/mnożnik).\n"
-                      f"Mnożnik 1 / 3 / 10, seedy 2000-2009 (10 uruchomień). Zachłanny i EA greedy z Tabeli 1.")
         save(fig, f"E1_budzet_{short(inst)}")
-
-
-def table1_path():
-    p = default_params()
-    return RESULTS_DIR / "podsumowanie" / f"{config_tag(p)}__{sa_config_tag(p)}.csv"
 
 
 def main():
@@ -305,8 +290,11 @@ def main():
 
     plot_validation(ea, sa)
 
-    if BUDGET_FILE.exists() and table1_path().exists():
-        plot_budget(read(BUDGET_FILE), read(table1_path()))
+    # Tabela 1 (z experiments.py) - stad zachlanny i EA greedy na wykresie budzetu
+    p = default_params()
+    table1_file = RESULTS_DIR / "podsumowanie" / f"{config_tag(p)}__{sa_config_tag(p)}.csv"
+    if BUDGET_FILE.exists() and table1_file.exists():
+        plot_budget(read(BUDGET_FILE), read(table1_file))
     else:
         print("Pomijam wykres budzetu: brak podsumowania budget.py albo Tabeli 1")
 

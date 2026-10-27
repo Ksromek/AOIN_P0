@@ -1,6 +1,4 @@
-import os
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
@@ -93,10 +91,8 @@ def run_sa(inst, p):
 
 METHODS = ["losowy", "zachlanny", "EA", "EA_greedy", "SA"]
 
-N_WORKERS = max(1, (os.cpu_count() or 2) - 4)  # zostawiamy kilka rdzeni dla systemu
 
-
-# jedna metoda na jednej instancji (liczone w osobnym procesie)
+# jedna metoda na jednej instancji
 def run_method(path, method, p):
     inst = TTPInstance(path)
     instance_name = path.stem
@@ -144,19 +140,12 @@ def main():
     print(f"SA: cooling={p['SA_COOLING_SCHEMA']}, T0={p['SA_START_TEMP']}, min_temp={p['SA_MIN_TEMP']}, "
           f"alpha={p['SA_ALPHA']}, beta={p['SA_BETA']}, runs={p['N_RUNS']}")
 
-    # kazda para (instancja, metoda) liczona w osobnym procesie
-    jobs = [(path, method) for path in INSTANCES for method in METHODS]
-    results = {}
-    start = time.perf_counter()
-    with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:
-        futures = {executor.submit(run_method, path, method, p): (path, method) for path, method in jobs}
-        for future in as_completed(futures):
-            row, line = future.result()
-            results[futures[future]] = row
-            print(f"[{len(results)}/{len(jobs)}, {(time.perf_counter() - start) / 60:.1f} min] {line}")
-
-    # tabela podsumowania w stalej kolejnosci
-    summary_rows = [results[job] for job in jobs]
+    summary_rows = []
+    for path in INSTANCES:
+        for method in METHODS:
+            row, line = run_method(path, method, p)
+            summary_rows.append(row)
+            print(line)
 
     # tabela podsumowania (konfiguracja EA + SA w nazwie)
     csv_path = RESULTS_DIR / "podsumowanie" / f"{config_tag(p)}__{sa_config_tag(p)}.csv"

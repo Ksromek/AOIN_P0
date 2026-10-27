@@ -9,10 +9,13 @@ from config import RESULTS_DIR
 
 PLOTS_DIR = RESULTS_DIR / "plots"
 
-# przebiegi dla jednej instancji z kazdej grupy (latwa, srednia, trudna, extra)
+# przebiegi dla wszystkich instancji
 PLOT_INSTANCES = [
+    "berlin52_n153_uncorr_06",
     "berlin52_n510_uncorr_07",
+    "ch150_n149_uncorr-similar-weights_09",
     "ch150_n447_uncorr-similar-weights_06",
+    "a280_n279_bounded-strongly-corr_08",
     "a280_n837_bounded-strongly-corr_04",
     "d493_n2460_uncorr-similar-weights_10",
 ]
@@ -51,26 +54,6 @@ def load_history(path):
     return pd.read_csv(path, sep=";")
 
 
-# opis konfiguracji na podstawie kolumn z parametrami w CSV
-def describe(df):
-    p = df.iloc[0]
-    if is_ea(df):
-        init = {"random": "losowa", "greedy": "zachłanna"}[p["init"]]
-        if p["selection"] == "tournament":
-            selection = f"turniej (Tour = {p['tournament']})"
-        else:
-            selection = "ruletka"
-        crossover = p["crossover"].upper()
-        mutation = {"inversion": "inwersja", "swap": "swap"}[p["mutation"]]
-        return (f"EA: inicjalizacja {init}, selekcja {selection}, krzyżowanie {crossover} (Px = {p['px']}), "
-                f"mutacja {mutation} (Pm = {p['pm']}), pop_size = {p['pop_size']}, gen = {p['generations']}")
-    if p["cooling"] == "geometric":
-        cooling = f"geometryczne (alfa = {p['alpha']})"
-    else:
-        cooling = f"liniowe (beta = {p['beta']})"
-    return f"SA: chłodzenie {cooling}, T0 = {p['start_temp']}, T_min = {p['min_temp']}"
-
-
 def is_ea(df):
     return "nr_pokolenia" in df.columns
 
@@ -94,7 +77,6 @@ def plot_ea_generations(path):
     ax.set_xlabel("pokolenie")
     ax.set_ylabel("ocena G(x, y)")
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3)  # nad wykresem, nie zaslania danych
-    fig.text(0.01, -0.02, describe(df), color=TEXT_SECONDARY, fontsize=8)
     save(fig, path.stem)
 
 
@@ -118,7 +100,6 @@ def plot_ea_runs(path):
     ax.set_xlabel("kolejne pokolenia wszystkich uruchomień")
     ax.set_ylabel("ocena G(x, y)")
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3)  # nad wykresem, nie zaslania danych
-    fig.text(0.01, -0.02, describe(df), color=TEXT_SECONDARY, fontsize=8)
     save(fig, f"{path.stem}_uruchomienia")
 
 
@@ -140,7 +121,6 @@ def plot_sa(path):
     ax_temp.set_xlabel("iteracja")
     ax_temp.set_ylabel("temperatura")
 
-    fig.text(0.01, -0.02, describe(df), color=TEXT_SECONDARY, fontsize=8)
     save(fig, path.stem)
 
 

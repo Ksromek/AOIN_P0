@@ -47,7 +47,7 @@ def evaluate(inst, tour, picked):
     return g_profit(inst, picked) - f_travel_time(inst, tour, picked)
 
 
-# heurystyka zachłanna - dobiera przedmioty do trasy
+# zachłanne dobieranie przedmiotu do trasy
 def pack_items(inst, tour):
     n = inst.n_cities  # liczba miast
     speed_loss_per_weight = (inst.v_max - inst.v_min) / inst.capacity  # spadek prędkości na jednostkę wagi
@@ -81,16 +81,16 @@ def pack_items(inst, tour):
     return picked
 
 
-# pakowanie + ocena, zwraca (G, picked)
+# pakowanie + ocena -> (G, picked)
 def evaluate_tour(inst, tour):
     picked = pack_items(inst, tour)
     return evaluate(inst, tour, picked), picked
 
 
 def is_valid_tour(inst, tour):
-    if len(tour) != inst.n_cities:  # czy długość trasy równa liczbie miast?
+    if len(tour) != inst.n_cities:  # sprawdzenie, czy długość trasy równa liczbie miast
         return False
-    if tour[0] != 0:  # czy zaczynamy od miasta 0?
+    if tour[0] != 0:  # sprawdzenie, czy zaczynamy od miasta 0
         return False
     if not np.array_equal(np.sort(tour), np.arange(inst.n_cities)):  # czy każde miasto występuje raz?
         return False

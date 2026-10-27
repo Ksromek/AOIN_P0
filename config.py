@@ -25,7 +25,7 @@ N_RUNS = 10          # liczba uruchomien
 POP_SIZE = 50        # rozmiar populacji
 GENERATIONS = 200    # liczba pokolen
 PX = 0.7             # prawdopodobienstwo krzyzowania
-PM = 0.7             # prawdopodobienstwo mutacji: inwersja - na osobnika, swap - na gen (start od 0.01)
+PM = 0.7             # prawdopodobienstwo mutacji: inwersja - na osobnika, swap - na gen
 TOURNAMENT = 10      # rozmiar turnieju
 
 # operatory EA
@@ -37,9 +37,6 @@ MUTATION_METHOD = "inversion"    # "inversion" / "swap"
 # drugi wariant EA
 EA_GREEDY = {"INIT_METHOD": "greedy", "POP_SIZE": 100, "GENERATIONS": 100,
              "TOURNAMENT": 5, "PX": 0.7, "PM": 0.5}
-
-# algorytm losowy, tyle ocen, ile wykonuje EA (pokolenia x osobniki)
-N_RANDOM = POP_SIZE * GENERATIONS
 
 # parametry SA
 SA_START_TEMP = 1000.0             # temperatura poczatkowa

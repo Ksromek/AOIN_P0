@@ -12,7 +12,7 @@ def make_neighbour(current, rng):
     return inversion_mutation(current, pos_1, pos_2)
 
 
-# cooling schemas
+# schematy chłodzenia
 def cool(temp, cooling_schema, alpha, beta):
     if cooling_schema == "geometric":
         return temp * alpha        # T_k+1 = alpha * T_k
