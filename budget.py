@@ -3,6 +3,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
+import config
 from config import INSTANCES, RESULTS_DIR
 from experiments import default_params
 from algorithms import evolutionary_algorithm, simulated_annealing
@@ -10,7 +11,7 @@ from ttp import TTPInstance
 from utils.log_to_csv import save_history_csv
 
 MULTIPLIERS = [1, 3, 10]
-METHODS = ["EA", "SA"]
+METHODS = ["EA", "EA_greedy", "SA"]
 
 N_WORKERS = max(1, (os.cpu_count() or 2) - 4)  # zostawiamy kilka rdzeni dla systemu
 
@@ -19,10 +20,11 @@ N_WORKERS = max(1, (os.cpu_count() or 2) - 4)  # zostawiamy kilka rdzeni dla sys
 def run_once(path, method, mult, run, p):
     inst = TTPInstance(path)
     rng = np.random.default_rng(p["SEED"] + run)  # te same seedy co w experiments.py
-    if method == "EA":
+    if method in ("EA", "EA_greedy"):
+        pe = p if method == "EA" else {**p, **config.EA_GREEDY}
         _, best, _, n_evals = evolutionary_algorithm(
-            inst, rng, p["POP_SIZE"], p["GENERATIONS"] * mult, p["PX"], p["PM"], p["TOURNAMENT"],
-            p["INIT_METHOD"], p["SELECTION_METHOD"], p["CROSSOVER_METHOD"], p["MUTATION_METHOD"])
+            inst, rng, pe["POP_SIZE"], pe["GENERATIONS"] * mult, pe["PX"], pe["PM"], pe["TOURNAMENT"],
+            pe["INIT_METHOD"], pe["SELECTION_METHOD"], pe["CROSSOVER_METHOD"], pe["MUTATION_METHOD"])
     else:
         alpha = p["SA_ALPHA"] ** (1 / mult)
         _, best, _, n_evals = simulated_annealing(

@@ -192,7 +192,7 @@ def plot_sa_budget_grid(sa):
         lin = lin.groupby("t0")["avg"].agg(["mean", "std"]).reset_index()
         band(ax_lin, lin["t0"], lin["mean"], lin["std"].fillna(0), SA_COLOR, "liniowe")
         ax_lin.axhline(geo["avg"].mean(), color=TEXT_SECONDARY, linestyle="--", linewidth=1,
-                       label="geometryczne (średnia z mapy)")
+                       label="geometryczne (średnia z siatki)")
         log_ticks(ax_lin, lin["t0"])
         ax_lin.tick_params(axis="x", labelsize=7)
         ax_lin.set_xlabel("T0")
@@ -246,22 +246,20 @@ def plot_validation(ea, sa):
         save(fig, f"C1_walidacja_{short(inst)}")
 
 
-# EA i SA w funkcji budzetu; dla porownania zachlanny (linie poziome) i EA greedy przy 10k (gwiazdka)
+# EA i SA w funkcji budzetu; dla porownania zachlanny (linie poziome)
 def plot_budget(budget, table1):
     for inst in budget["instancja"].unique():
         fig, ax = plt.subplots(figsize=(6.5, 4.2))
-        for method, color in [("EA", EA_COLOR), ("SA", SA_COLOR)]:
+        for method, color, label in [("EA", EA_COLOR, "EA"), ("EA_greedy", GREEDY_COLOR, "EA greedy"),
+                                     ("SA", SA_COLOR, "SA")]:
             d = budget[(budget["instancja"] == inst) & (budget["metoda"] == method)].sort_values("oceny")
-            band(ax, d["oceny"], d["avg"], d["std"], color, method)
+            band(ax, d["oceny"], d["avg"], d["std"], color, label)
 
         t = table1[table1["instancja"] == inst].set_index("metoda")  # wiersze Tabeli 1 dla tej instancji
         ax.axhline(t.loc["zachlanny", "avg"], color=TEXT_SECONDARY, linestyle="--", linewidth=1,
                    label="zachłanny (avg)")
         ax.axhline(t.loc["zachlanny", "best"], color=TEXT_SECONDARY, linestyle=":", linewidth=1,
                    label="zachłanny (best)")
-        ax.errorbar(t.loc["EA_greedy", "oceny"], t.loc["EA_greedy", "avg"], yerr=t.loc["EA_greedy", "std"],
-                    color=GREEDY_COLOR, marker="*", markersize=9, capsize=3, linestyle="none",
-                    label="EA greedy")
 
         log_ticks(ax, [10_000, 30_000, 100_000])
         ax.set_xticklabels(["10k", "30k", "100k"])
@@ -290,7 +288,7 @@ def main():
 
     plot_validation(ea, sa)
 
-    # Tabela 1 (z experiments.py) - stad zachlanny i EA greedy na wykresie budzetu
+    # Tabela 1 (z experiments.py) - stad zachlanny na wykresie budzetu
     p = default_params()
     table1_file = RESULTS_DIR / "podsumowanie" / f"{config_tag(p)}__{sa_config_tag(p)}.csv"
     if BUDGET_FILE.exists() and table1_file.exists():
